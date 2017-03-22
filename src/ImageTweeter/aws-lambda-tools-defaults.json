@@ -7,5 +7,5 @@
   "function-memory-size": 256,
   "function-timeout": 30,
   "function-handler": "ImageTweeter::ImageTweeter.LambdaHandler::Handler",
-  "function-name": "lambda-sharp-image-tweeter"
+  "function-name": "team3-lambda-sharp-image-tweeter"
 }
