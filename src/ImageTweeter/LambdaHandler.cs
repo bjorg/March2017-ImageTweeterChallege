@@ -39,10 +39,27 @@ namespace ImageTweeter {
             var s3 = s3Event.Records.First().S3;
             var bucketName = s3.Bucket.Name;
             var keyName = s3.Object.Key;
-            var msg = $"bucket: {bucketName}, key: {keyName}";
-            LambdaLogger.Log(msg);
+            var logmsg = $"bucket: {bucketName}, key: {keyName}";
+            LambdaLogger.Log(logmsg);
 
             // Level 3: Post the image and message to twitter
+
+            // rekognize faces
+            var rekFaces = new Amazon.Rekognition.Model.DetectFacesRequest {
+                Attributes = new[] { "ALL" }.ToList(),
+                Image = new Amazon.Rekognition.Model.Image {
+                    S3Object = new Amazon.Rekognition.Model.S3Object {
+                        Bucket = bucketName,
+                        Name = keyName
+                    }
+                }
+            };
+            var rekFacesResult = await rekClient.DetectFacesAsync(rekFaces);
+            var emotions = rekFacesResult.FaceDetails
+                .SelectMany(fd => fd.Emotions)
+                .OrderByDescending(fd => fd.Confidence)
+                .Select(e => $"#{e.Type.Value}({e.Confidence:N0}%)")
+                .First();
 
             // rekognize labels
             var rekReq = new Amazon.Rekognition.Model.DetectLabelsRequest {
@@ -54,14 +71,16 @@ namespace ImageTweeter {
                 }
             };
             var rekResult = await rekClient.DetectLabelsAsync(rekReq);
-            var labels = string.Join(" ", rekResult.Labels.Select(l => "#" + l.Name));
+            var labels = rekResult.Labels.Select(l => "#" + l.Name).ToArray();
+            LambdaLogger.Log($"[{rekResult.HttpStatusCode}] labels({labels.Length}): {string.Join(" ", labels)}");
 
+            var msg = emotions + string.Join($" ", labels);
             using(var response = await s3Client.GetObjectAsync(bucketName, keyName))  {
                 var tempFile = Path.GetTempFileName();
                 await response.WriteResponseStreamToFileAsync(tempFile, false, default(CancellationToken));
                 byte[] fileBytes = File.ReadAllBytes(tempFile);
                 var media = Upload.UploadImage(fileBytes);
-                Tweet.PublishTweet($"Team3: {labels}", new PublishTweetOptionalParameters {
+                Tweet.PublishTweet($"Team3: {msg}", new PublishTweetOptionalParameters {
                     Medias = new List<TweetinviModels.IMedia> { media }
                 });
             }
