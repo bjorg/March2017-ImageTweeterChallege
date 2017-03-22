@@ -12,6 +12,7 @@ using TweetinviModels = Tweetinvi.Models;
 using Tweetinvi.Parameters;
 using System.Threading;
 using System.Threading.Tasks;
+using ImageSharp;
 
 [assembly:LambdaSerializerAttribute(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
 namespace ImageTweeter {
@@ -58,7 +59,7 @@ namespace ImageTweeter {
             var emotions = rekFacesResult.FaceDetails
                 .SelectMany(fd => fd.Emotions)
                 .OrderByDescending(fd => fd.Confidence)
-                .Select(e => $"#{e.Type.Value}({e.Confidence:N0}%)")
+                .Select(e => $"{e.Confidence:N0}% #{e.Type.Value}")
                 .First();
 
             // rekognize labels
@@ -77,8 +78,17 @@ namespace ImageTweeter {
             var msg = emotions + string.Join($" ", labels);
             using(var response = await s3Client.GetObjectAsync(bucketName, keyName))  {
                 var tempFile = Path.GetTempFileName();
+                tempFile = Path.ChangeExtension(tempFile, Path.GetExtension(keyName));
                 await response.WriteResponseStreamToFileAsync(tempFile, false, default(CancellationToken));
-                byte[] fileBytes = File.ReadAllBytes(tempFile);
+                LambdaLogger.Log($"created '{tempFile}'");
+
+                var image = new Image(File.OpenRead(tempFile));
+                var tempFile2 = Path.GetTempFileName();
+                tempFile2 = Path.ChangeExtension(tempFile2, Path.GetExtension(keyName));
+                image.Lomograph().Grayscale().Save(tempFile2);
+                LambdaLogger.Log($"created '{tempFile2}'");
+
+                byte[] fileBytes = File.ReadAllBytes(tempFile2);
                 var media = Upload.UploadImage(fileBytes);
                 Tweet.PublishTweet($"Team3: {msg}", new PublishTweetOptionalParameters {
                     Medias = new List<TweetinviModels.IMedia> { media }

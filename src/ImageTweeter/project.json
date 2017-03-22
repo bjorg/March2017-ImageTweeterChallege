@@ -15,7 +15,8 @@
       "type": "platform",
       "version": "1.0.0"
     },
-    "TweetinviAPI": "1.2"
+    "TweetinviAPI": "1.2",
+    "ImageSharp": "1.0.0-alpha4-00043"
   },
   "tools": {
     "Amazon.Lambda.Tools": "1.0.0-preview1"
